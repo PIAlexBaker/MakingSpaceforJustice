@@ -4,6 +4,21 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Making Space for Justice</title>
+<meta name="description" content="Prisoners keep arriving. Build places before the gate overflows. Can you solve the capacity crisis?">
+<link rel="canonical" href="https://pialexbaker.github.io/MakingSpaceforJustice/">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://pialexbaker.github.io/MakingSpaceforJustice/">
+<meta property="og:title" content="Making Space for Justice">
+<meta property="og:description" content="Prisoners keep arriving. Build places before the gate overflows. Can you solve the capacity crisis?">
+<meta property="og:image" content="https://pialexbaker.github.io/MakingSpaceforJustice/card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Making Space for Justice title screen: pixel-art prison wall and cells">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Making Space for Justice">
+<meta name="twitter:description" content="Prisoners keep arriving. Build places before the gate overflows. Can you solve the capacity crisis?">
+<meta name="twitter:image" content="https://pialexbaker.github.io/MakingSpaceforJustice/card.png">
+<meta name="twitter:image:alt" content="Making Space for Justice title screen: pixel-art prison wall and cells">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap">
 <style>
 :root{
@@ -100,7 +115,7 @@ button:focus-visible,a:focus-visible{outline:3px solid #fff;outline-offset:1px}
       <button class="act" id="bBuild" type="button"><span class="k">1 Build cells</span><span class="c"></span><span class="d">400 permanent places. Takes 7s.</span></button>
       <button class="act" id="bRapid" type="button"><span class="k">2 Rapid deployment</span><span class="c"></span><span class="d">300 places now. Gone in 28s.</span></button>
       <button class="act" id="bConvert" type="button"><span class="k">3 Convert a building</span><span class="c"></span><span class="d">800 temporary places. Freezes construction 5s.</span></button>
-      <button class="act release" id="bRelease" type="button"><span class="k">4 Emergency release</span><span class="c"></span><span class="d">Empties 35% of cells. Costs points. Recalls follow.</span></button>
+      <button class="act release" id="bRelease" type="button"><span class="k">4 Emergency release</span><span class="c"></span><span class="d">Empties 35% of cells. Costs 100 points per prisoner. Recalls rise each time.</span></button>
     </div>
     <div class="overlay" id="overUI" hidden>
       <h2>The prisons are full</h2>
@@ -252,15 +267,16 @@ function actConvert(){
   G.money-=50;G.cd.convert=25;G.freeze=Math.max(G.freeze,5);SFX.convert();
 }
 function actRelease(){if(G.cd.release>0)return deny();doRelease(false)}
+const recallRate=()=>Math.min(.95,.45+.1*G.releases+(G.probation>0?.25:0));
 function doRelease(scripted){
   const occ=[];G.slots.forEach(c=>{if(c&&c.occ)occ.push(c)});
   occ.sort(()=>Math.random()-.5);
   const n=Math.ceil(occ.length*.35);
   for(let i=0;i<n;i++){occ[i].occ=null;G.runners.push({x:160,y:rnd(96,112),vx:(i%2?1:-1)*rnd(90,150),delay:i*.03,recall:false})}
-  const k=Math.round(n*(G.probation>0?.7:.45));
-  for(let i=0;i<k;i++)G.recalls.push(G.t+(scripted?rnd(40,65):rnd(14,24)));
+  const k=Math.round(n*recallRate()),cut=Math.min(10,G.releases*1.5);
+  for(let i=0;i<k;i++)G.recalls.push(G.t+(scripted?rnd(40,65):rnd(14-cut,24-cut*1.6)));
   stamp('RELEASE ORDERED',200);SFX.alarm();G.shake=.4;
-  if(!scripted){G.releases++;G.released+=n*100;G.score=Math.max(0,G.score-1000);G.sinceRel=0;G.cd.release=10;float('-1,000 JUSTICE POINTS',C.red)}
+  if(!scripted){G.releases++;G.released+=n*100;G.score=Math.max(0,G.score-n*100);G.sinceRel=0;G.cd.release=10;float('-'+fmt(n*100)+' JUSTICE POINTS',C.red)}
 }
 
 const EVENTS=[
@@ -323,7 +339,7 @@ function update(dt){
   G.movers=G.movers.filter(m=>{
     if(G.slots[m.i]!==m.cell){G.queue.push({x:m.x,y:m.y,recall:m.recall});return false}
     const tx=sx(m.i)+8,ty=sy(m.i)+12,dx=tx-m.x,dy=ty-m.y,d=Math.hypot(dx,dy),s=280*dt;
-    if(d<=s){m.cell.res=false;m.cell.occ={stay:m.recall?rnd(25,35):rnd(35,60),recall:m.recall};G.score+=25*mult();return false}
+    if(d<=s){m.cell.res=false;m.cell.occ={stay:m.recall?rnd(25,35):rnd(35,60),recall:m.recall};if(!m.recall)G.score+=25*mult();return false}
     m.x+=dx/d*s;m.y+=dy/d*s;return true;
   });
   G.runners=G.runners.filter(r=>{if(r.delay>0){r.delay-=dt;return true}r.x+=r.vx*dt;return r.x>-8&&r.x<W+8});
@@ -518,12 +534,12 @@ function setBtn(id,label,disabled,cd){
   const v=Math.round(cd*50)/50;if(o.cd!==v){o.cd=v;o.b.style.setProperty('--cd',v)}
 }
 function syncButtons(){
-  if(mode!=='play'||!G){setBtn('bBuild','£40m',true,0);setBtn('bRapid','£30m',true,0);setBtn('bConvert','£50m',true,0);setBtn('bRelease','No cost today',true,0);return}
+  if(mode!=='play'||!G){setBtn('bBuild','£40m',true,0);setBtn('bRapid','£30m',true,0);setBtn('bConvert','£50m',true,0);setBtn('bRelease','Recall rate 45%',true,0);return}
   const full=!G.slots.includes(null),c=buildCost();
   setBtn('bBuild','£'+c+'m'+(G.costMul>1?' (doubled)':G.costMul<1?' (half price)':''),G.money<c||full||G.cd.build>0,G.cd.build/1.5);
   setBtn('bRapid','£30m',G.money<30||full||G.cd.rapid>0,G.cd.rapid/3);
   setBtn('bConvert','£50m',G.money<50||full||G.cd.convert>0,G.cd.convert/25);
-  setBtn('bRelease',G.cd.release>0?'Recharging':'No cost today',G.cd.release>0,G.cd.release/10);
+  setBtn('bRelease',G.cd.release>0?'Recharging':'Recall rate '+Math.round(recallRate()*100)+'%',G.cd.release>0,G.cd.release/10);
 }
 
 /* ---------- sizing and loop ---------- */
